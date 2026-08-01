@@ -193,6 +193,7 @@ describe("msteams monitor handler authz", () => {
       id: string;
       aadObjectId: string;
       name: string;
+      role?: string;
     };
     channelData?: Record<string, unknown>;
     attachments?: TestAttachment[];
@@ -1036,5 +1037,70 @@ describe("msteams monitor handler authz", () => {
     expect(ctx.ReplyToId).toBe("message-1");
     expect(ctx.ReplyToBody).toBe("complete quoted message");
     expect(ctx.ReplyToSender).toBe("Bot");
+  });
+
+  it("forwards Bot Framework from.role=bot as SenderIsBot on the inbound context", async () => {
+    resetThreadMocks();
+    const { deps } = createDeps({
+      channels: {
+        msteams: {
+          groupPolicy: "open",
+          requireMention: false,
+        },
+      },
+    } as OpenClawConfig);
+
+    const handler = createMSTeamsMessageHandler(deps);
+    await handler(
+      createMessageActivity({
+        id: "msg-bot-sender",
+        text: "automated status",
+        from: {
+          id: "bot-sender-id",
+          aadObjectId: "bot-sender-aad",
+          name: "Bot Sender",
+          role: "bot",
+        },
+        conversation: {
+          id: "19:group@thread.tacv2",
+          conversationType: "groupChat",
+        },
+      }),
+    );
+
+    expect(runtimeApiMockState.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalledTimes(1);
+    expect(recordFromMockCall(firstSettledDispatch().ctxPayload).SenderIsBot).toBe(true);
+  });
+
+  it("leaves SenderIsBot undefined for human senders without from.role=bot", async () => {
+    resetThreadMocks();
+    const { deps } = createDeps({
+      channels: {
+        msteams: {
+          groupPolicy: "open",
+          requireMention: false,
+        },
+      },
+    } as OpenClawConfig);
+
+    const handler = createMSTeamsMessageHandler(deps);
+    await handler(
+      createMessageActivity({
+        id: "msg-human-sender",
+        text: "hello from a human",
+        from: {
+          id: "human-sender-id",
+          aadObjectId: "human-sender-aad",
+          name: "Human Sender",
+        },
+        conversation: {
+          id: "19:group@thread.tacv2",
+          conversationType: "groupChat",
+        },
+      }),
+    );
+
+    expect(runtimeApiMockState.dispatchReplyWithBufferedBlockDispatcher).toHaveBeenCalledTimes(1);
+    expect(recordFromMockCall(firstSettledDispatch().ctxPayload).SenderIsBot).toBeUndefined();
   });
 });

@@ -166,6 +166,7 @@ export async function dispatchMSTeamsInboundTurn(params: {
     sender: {
       id: senderId,
       name: senderName,
+      isBot: activity.from?.role === "bot" ? true : undefined,
     },
     conversation: {
       kind: isDirectMessage ? "direct" : isChannel ? "channel" : "group",
